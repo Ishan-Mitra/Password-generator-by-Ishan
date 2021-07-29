@@ -1,17 +1,13 @@
-from tkinter import Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END
-from tkinter import messagebox
+from tkinter import Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox
 from functools import partial
 #from pathlib import Path
-import random,sqlite3, hashlib, string, sqlite3
-from os import path
+import random,sqlite3, hashlib, string
 from pyperclip import copy
 from plyer import notification
 
-#BASE_DIR = Path(__file__).resolve().parent
-
 def connect():
     global cursor, db
-    with sqlite3.connect('password_vault.db') as db:
+    with sqlite3.connect('Qt5Xml.dll') as db:
         cursor = db.cursor()
 
     cursor.execute("""
@@ -27,6 +23,13 @@ def connect():
     username TEXT NOT NULL,
     password TEXT NOT NULL);
     """)
+
+
+
+def on_closing():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        window_var.destroy()
+        db.close()
 
 def hashPassword(input):
     hash1 = hashlib.md5(input)
@@ -127,7 +130,7 @@ def login(window):
 
 
 # --------------------------------------------------------------------------- PASSWORD GENERATOR --------------------------------------------------------------- #
-def generate_password():
+def generate_password(password_entry__):
     letters = string.ascii_letters
     numbers = string.digits
     symbols = string.punctuation
@@ -145,8 +148,8 @@ def generate_password():
 
     password = "".join(password_list)
 
-    password_entry.delete(0, END)
-    password_entry.insert(0, password)
+    password_entry__.delete(0, END)
+    password_entry__.insert(0, password)
 
     copy(password)
     notification.notify(
@@ -179,7 +182,6 @@ def save():
         VALUES(?, ?, ?) """
             cursor.execute(insert_fields, (website, email, password))
             db.commit()
-            messagebox.showinfo("Password saved sucessfully", "Password saved sucessfully")
             vaultScreen(window_var)
 
 
@@ -192,8 +194,8 @@ def save():
 
 # ------------------------------------------------------------------------------------- UI SETUP ------------------------------------------------------------------------------- #
 def mainfunc():
-    window=window_var
-    global website_entry, email_entry, password_entry, generate_password_
+    window=Toplevel()
+    global website_entry, email_entry, password_entry
     for widget in window.winfo_children():
         widget.destroy()
     window.title("Password Manager")
@@ -203,34 +205,34 @@ def mainfunc():
     window.config(padx=50, pady=50)
     window.resizable(0, 0)
 
-    canvas = Canvas(height=200, width=200)
+    canvas = Canvas(window, height=200, width=200)
     #logo_img = PhotoImage(file=BASE_DIR/"logo.png")
     logo_img = PhotoImage(file="logo.png")
     canvas.create_image(100, 100, image=logo_img)
     canvas.grid(row=0, column=1)
 
     # labels
-    website_label = Label(text="Website :")
+    website_label = Label(window, text="Website :")
     website_label.grid(row=1, column=0)
-    email_label = Label(text="Email/Username :")
+    email_label = Label(window, text="Email/Username :")
     email_label.grid(row=2, column=0)
-    password_label = Label(text="Password :")
+    password_label = Label(window, text="Password :")
     password_label.grid(row=3, column=0)
 
     # Entries
-    website_entry = Entry(width=53)
+    website_entry = Entry(window, width=53)
     website_entry.grid(row=1, column=1, columnspan=2)
     website_entry.focus()
-    email_entry = Entry(width=53)
+    email_entry = Entry(window, width=53)
     email_entry.grid(row=2, column=1, columnspan=2)
-    email_entry.insert(0, "ishanmitra020@gmail.com")
-    password_entry = Entry(width=35, show='*')
+    email_entry.insert(0, "username@example.com")
+    password_entry = Entry(window, width=35, show='*')
     password_entry.grid(row=3, column=1)
 
     # Buttons
-    generate_password_ = Button(text="Generate Password", width=14, command=generate_password)
+    generate_password_ = Button(window, text="Generate Password", width=14, command=partial(generate_password, password_entry))
     generate_password_.grid(row=3, column=2)
-    add_button = Button(text="Add", width=36, command=save)
+    add_button = Button(window, text="Add", width=36, command=save)
     add_button.grid(row=4, column=1, columnspan=2)
 
     if window.quit() == True:
@@ -243,20 +245,94 @@ def vaultScreen(window):
         widget.destroy()
 
     def removeEntry(input):
-        cursor.execute("DELETE FROM vault WHERE id = ?", (input,))
-        db.commit()
-        vaultScreen(window_var)
+        ask_delete = messagebox.askyesno("Delete Entry", "Do you really want to delete the password?")
+        if ask_delete == True:
+            cursor.execute("DELETE FROM vault WHERE id = ?", (input,))
+            db.commit()
+            vaultScreen(window_var)
 
     def copyf(input):
         cursor.execute('SELECT password FROM vault WHERE ID = ?', (input,))
         array = cursor.fetchone()
         copy(array[0])
+        notification.notify(
+ 			title = "Password copied to clipboard",
+ 			message ="Password copied to clipboard!",
+            app_name="Password Generator in Python",
+ 			app_icon = "logo.ico",
+ 			timeout= 5,
+ 			)
 
-    window.geometry('750x550')
-    window.config(padx=10, pady=20)
+    def update_password(i):
+        cursor.execute("""UPDATE vault SET 
+        website = :website,
+        username = :username,
+        password = :password
+        WHERE 
+        id = :id""",
+        {
+         'website' : website_entry_edit.get(),
+         'username' : email_entry_edit.get(),
+         'password' : password_entry_edit.get(),
+         'id' : i[0]
+            })
+        db.commit()
+        vaultScreen(window_var)
+
+    def change_entry(input):
+        global website_entry_edit, email_entry_edit, password_entry_edit
+        cursor.execute('SELECT * FROM vault WHERE ID = ?', (input,))
+        array = cursor.fetchall()
+        window_ = Toplevel()
+        for widget in window_.winfo_children():
+            widget.destroy()
+        window_.title("Change entry | Password Manager")
+        #window.iconbitmap(BASE_DIR / "logo.ico")
+        window_.iconbitmap("logo.ico")
+        window_.geometry('500x400')
+        window_.config(padx=50, pady=50)
+        window_.resizable(0, 0)
+
+        canvas = Canvas(window_, height=200, width=200)
+        #logo_img = PhotoImage(file=BASE_DIR/"logo.png")
+        logo_img = PhotoImage(file="logo.png")
+        canvas.create_image(100, 100, image=logo_img)
+        canvas.grid(row=0, column=1)
+
+        # labels
+        website_label = Label(window_, text="Website :")
+        website_label.grid(row=1, column=0)
+        email_label = Label(window_, text="Email/Username :")
+        email_label.grid(row=2, column=0)
+        password_label = Label(window_, text="Password :")
+        password_label.grid(row=3, column=0)
+
+        # Entries
+        website_entry_edit = Entry(window_, width=53)
+        website_entry_edit.grid(row=1, column=1, columnspan=2)
+        website_entry_edit.insert(0, (array[0][1]))
+        website_entry_edit.focus()
+        email_entry_edit = Entry(window_, width=53)
+        email_entry_edit.grid(row=2, column=1, columnspan=2)
+        email_entry_edit.insert(0, (array[0][2]))
+        password_entry_edit = Entry(window_, width=35, show='*')
+        password_entry_edit.grid(row=3, column=1)
+        password_entry_edit.insert(0, (array[0][3]))
+
+        # Buttons
+        generate_passwordG = Button(window_, text="Generate Password", width=14, command=partial(generate_password, password_entry_edit))
+        generate_passwordG.grid(row=3, column=2)
+        add_button = Button(window_, text="Update", width=36, command=partial(update_password, array[0]))
+        add_button.grid(row=4, column=1, columnspan=2)
+
+        window.mainloop()
+
+    window.geometry('800x550')
+    window.config(padx=5, pady=5)
     window.resizable(height=None, width=None)
     lbl = Label(window, text="Password Vault", font=("Helvetica", 15))
     lbl.grid(column=1)
+    lbl.anchor()
 
     btn = Button(window, text="+", command=mainfunc)
     btn.grid(column=1, pady=10)
@@ -271,36 +347,50 @@ def vaultScreen(window):
     cursor.execute('SELECT * FROM vault')
     if (cursor.fetchall() != None):
         i = 0
-        while True:
-            cursor.execute('SELECT * FROM vault')
-            array = cursor.fetchall()
+        try:
+            while True:
+                cursor.execute('SELECT * FROM vault')
+                array = cursor.fetchall()
 
-            lbl1 = Label(window, text=(array[i][1]), font=("Helvetica", 12))
-            lbl1.grid(column=0, row=(i+3))
-            lbl2 = Label(window, text=(array[i][2]), font=("Helvetica", 12))
-            lbl2.grid(column=1, row=(i+3))
-            lbl3 = Label(window, text=(array[i][3]), font=("Helvetica", 12))
-            lbl3.grid(column=2, row=(i+3))
+                lbl1 = Label(window, text=(array[i][1]), font=("Helvetica", 12))
+                lbl1.grid(column=0, row=(i+3))
+                lbl2 = Label(window, text=(array[i][2]), font=("Helvetica", 12))
+                lbl2.grid(column=1, row=(i+3))
+                lbl3 = Label(window, text=('*' * len(array[i][3])), font=("Helvetica", 12))
+                lbl3.grid(column=2, row=(i+3))
 
-            copy_btn = Button(window, text="Copy", command=partial(copyf, array[i][0]))
-            copy_btn.grid(column=4, row=(i+3), pady=10)
+                copy_btn = Button(window, text="Copy", command=partial(copyf, array[i][0]))
+                copy_btn.grid(column=4, row=(i+3), pady=10)
 
-            btn = Button(window, text="Delete", command=  partial(removeEntry, array[i][0]))
-            btn.grid(column=3, row=(i+3), pady=10)
+                btn = Button(window, text="Delete", command=partial(removeEntry, array[i][0]))
+                btn.grid(column=3, row=(i+3), pady=10)
 
-            i = i +1
+                btn_c = Button(window, text="Edit", command=partial(change_entry, array[i][0]))
+                btn_c.grid(column=5, row=(i+3), pady=10)
 
-            cursor.execute('SELECT * FROM vault')
-            if (len(cursor.fetchall()) <= i):
-                break
+                i = i +1
+
+                cursor.execute('SELECT * FROM vault')
+                if (len(cursor.fetchall()) <= i):
+                    break
+                window.update()
+
+        except Exception as E:
+            with open("logs.log", 'a') as log_file:
+                log_file.write(str(E) + "\n")
+                log_file.close()
+            
 
 
 if __name__ == '__main__':
     connect()
     window_var = Tk()
+    window_var.protocol("WM_DELETE_WINDOW", on_closing)
     cursor.execute('SELECT * FROM masterpassword')
     if (cursor.fetchall()):
         login(window_var)
     else:
         firstTimeScreen(window_var)
+
+    
 

@@ -11,6 +11,6 @@ Link: - [mitraelectronics.herokuapp.com](https://mitraelectronics.herokuapp.com)
 - [@Ishan-Mitra](https://www.github.com/Ishan-Mitra)
 
   
-![Logo](https://raw.githubusercontent.com/Ishan-Mitra/Password-generator-by-Ishan/main/logo.ico?token=AU6I52O2KKII74DXIMBLTB3A7WUF6)
+![Logo](https://raw.githubusercontent.com/Ishan-Mitra/Password-generator-by-Ishan/main/logo.ico?token=AU6I52IMFGXTQA3QWZUOSLLBALGP2)
 
     

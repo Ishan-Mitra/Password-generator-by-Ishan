@@ -4,6 +4,24 @@ from functools import partial
 import random,sqlite3, hashlib, string
 from pyperclip import copy
 from plyer import notification
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+
+def encrypt_text(message):
+    key = hashlib.sha256().digest()
+    IVvar = b'\xc7\xd6\xac*\xe5\x91\xa78\xebu$\x99+\xb2H\xae'
+    cipher = AES.new(key, AES.MODE_CBC, IVvar)
+    mes_enc = cipher.encrypt(pad(pad(pad(pad(message, AES.block_size), AES.block_size), AES.block_size), AES.block_size))
+    return mes_enc
+
+
+def decrypt_text(message):
+    key = hashlib.sha256().digest()
+    iv = b'\xc7\xd6\xac*\xe5\x91\xa78\xebu$\x99+\xb2H\xae'
+    text = message
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+
+    return unpad(unpad(unpad(unpad(cipher.decrypt(text), AES.block_size), AES.block_size), AES.block_size), AES.block_size).decode()
 
 def connect():
     global cursor, db
@@ -170,13 +188,12 @@ def save():
 
     website = website_entry.get()
     email = email_entry.get()
-    password = password_entry.get()
+    password = encrypt_text(bytes(password_entry.get(), 'utf-8'))
 
     if len(website) == 0 or len(password) == 0:
         messagebox.showinfo(title="Oops", message="Please make sure that each and every field is filled up")
-        
     else:
-        is_ok = messagebox.askyesno(title=website, message=f"These are the details entered : \nEmail: {email} \nPassword: {password} \nAre you sure you want to save this? " )
+        is_ok = messagebox.askyesno(title=website, message=f"These are the details entered : \nEmail: {email} \nPassword: {password_entry.get()} \nAre you sure you want to save this? " )
         if is_ok == True:
             insert_fields = """INSERT INTO vault(website, username, password) 
         VALUES(?, ?, ?) """
@@ -254,7 +271,7 @@ def vaultScreen(window):
     def copyf(input):
         cursor.execute('SELECT password FROM vault WHERE ID = ?', (input,))
         array = cursor.fetchone()
-        copy(array[0])
+        copy(decrypt_text(array[0]))
         notification.notify(
  			title = "Password copied to clipboard",
  			message ="Password copied to clipboard!",
@@ -273,7 +290,7 @@ def vaultScreen(window):
         {
          'website' : website_entry_edit.get(),
          'username' : email_entry_edit.get(),
-         'password' : password_entry_edit.get(),
+         'password' : encrypt_text(bytes(password_entry_edit.get(), 'utf-8')),
          'id' : i[0]
             })
         db.commit()
@@ -317,7 +334,7 @@ def vaultScreen(window):
         email_entry_edit.insert(0, (array[0][2]))
         password_entry_edit = Entry(window_, width=35, show='*')
         password_entry_edit.grid(row=3, column=1)
-        password_entry_edit.insert(0, (array[0][3]))
+        password_entry_edit.insert(0, decrypt_text(array[0][3]))
 
         # Buttons
         generate_passwordG = Button(window_, text="Generate Password", width=14, command=partial(generate_password, password_entry_edit))
@@ -356,7 +373,7 @@ def vaultScreen(window):
                 lbl1.grid(column=0, row=(i+3))
                 lbl2 = Label(window, text=(array[i][2]), font=("Helvetica", 12))
                 lbl2.grid(column=1, row=(i+3))
-                lbl3 = Label(window, text=('*' * len(array[i][3])), font=("Helvetica", 12))
+                lbl3 = Label(window, text=('*' * len(decrypt_text(array[i][3]))), font=("Helvetica", 12))
                 lbl3.grid(column=2, row=(i+3))
 
                 copy_btn = Button(window, text="Copy", command=partial(copyf, array[i][0]))
@@ -376,8 +393,8 @@ def vaultScreen(window):
                 window.update()
 
         except Exception as E:
-            with open("logs.log", 'a') as log_file:
-                log_file.write(str(E) + "\n")
+            with open('logs.log', 'a') as log_file:
+                log_file.write((str(E)) + "\n")
                 log_file.close()
             
 

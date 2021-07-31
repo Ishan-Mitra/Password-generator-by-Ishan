@@ -1,15 +1,27 @@
 from tkinter import Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox
 from functools import partial
-#from pathlib import Path
+#kkk
+from pathlib import Path
 import random,sqlite3, hashlib, string
 from pyperclip import copy
 from plyer import notification
+from sys import argv
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+
+BASE_DIR = Path(argv[0]).resolve().parent
 
 def encrypt_text(message):
     key = hashlib.sha256().digest()
     IVvar = b'\xc7\xd6\xac*\xe5\x91\xa78\xebu$\x99+\xb2H\xae'
+    cipher = AES.new(key, AES.MODE_CBC, IVvar)
+    mes_enc = cipher.encrypt(pad(pad(pad(pad(message, AES.block_size), AES.block_size), AES.block_size), AES.block_size))
+    return mes_enc
+
+
+def encrypt_text_(message):
+    key = hashlib.sha256().digest()
+    IVvar = b'\xc7\xd6\xac*\xe5\x91\xa77\xebu$\x99+\xb2H\xae'
     cipher = AES.new(key, AES.MODE_CBC, IVvar)
     mes_enc = cipher.encrypt(pad(pad(pad(pad(message, AES.block_size), AES.block_size), AES.block_size), AES.block_size))
     return mes_enc
@@ -25,8 +37,11 @@ def decrypt_text(message):
 
 def connect():
     global cursor, db
-    with sqlite3.connect('Qt5Xml.dll') as db:
+    with sqlite3.connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg') as db:
+    #with sqlite3.connect(f'{BASE_DIR}\\db.db') as db:
         cursor = db.cursor()
+
+    cursor.execute("PRAGMA key='test'")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS masterpassword(
@@ -47,6 +62,7 @@ def connect():
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
         window_var.destroy()
+        cursor.close()
         db.close()
 
 def hashPassword(input):
@@ -81,7 +97,7 @@ def firstTimeScreen(window):
 
     def savePassword():
         if txt.get() == txt1.get():
-            hashedPassword = hashPassword(txt.get().encode('utf-8'))
+            hashedPassword = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
             
             insert_password = """INSERT INTO masterpassword(password)
             VALUES(?) """
@@ -96,7 +112,6 @@ def firstTimeScreen(window):
     btn.grid(row=5, column=1)
 
     window.mainloop()
-
 
 
 
@@ -120,16 +135,12 @@ def login(window):
     lbl.config(anchor=CENTER)
     lbl.grid(row=0, column=2)
 
-    txt = Entry(window, width=20, show="*", font=("Helvetica", 15))
-    txt.grid(row=1, column=2)
-    txt.focus()
-
     def getMasterPassword():
-        checkHashedPassword = hashPassword(txt.get().encode('utf-8'))
+        checkHashedPassword = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
         cursor.execute('SELECT * FROM masterpassword WHERE id = 1 AND password = ?', [(checkHashedPassword)])
         return cursor.fetchall()
 
-    def checkPassword():
+    def checkPassword(*args):
         password = getMasterPassword()
 
         if password:
@@ -137,6 +148,11 @@ def login(window):
         else:
             txt.delete(0, 'end')
             messagebox.showerror(title="Wrong Password",message="You have entered a wrong password")
+
+    txt = Entry(window, width=20, show="*", font=("Helvetica", 15))
+    txt.grid(row=1, column=2)
+    txt.bind("<Return>", partial(checkPassword))
+    txt.focus()
 
     btn = Button(window, text="Submit", command=checkPassword, font=("Helvetica", 15))
     btn.grid(row=1, column=3)

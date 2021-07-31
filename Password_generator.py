@@ -1,13 +1,16 @@
 from tkinter import Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox
+from tkinter import filedialog
 from functools import partial
 #kkk
 from pathlib import Path
 import random,sqlite3, hashlib, string
+from pandas.io.sql import read_sql_query
 from pyperclip import copy
 from plyer import notification
 from sys import argv
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from pandas import read_sql_query as csv_write
 
 BASE_DIR = Path(argv[0]).resolve().parent
 
@@ -36,9 +39,10 @@ def decrypt_text(message):
     return unpad(unpad(unpad(unpad(cipher.decrypt(text), AES.block_size), AES.block_size), AES.block_size), AES.block_size).decode()
 
 def connect():
-    global cursor, db
-    with sqlite3.connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg') as db:
-    #with sqlite3.connect(f'{BASE_DIR}\\db.db') as db:
+    global cursor, db, conn
+    #conn = sqlite3.connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg')
+    conn = sqlite3.connect(f'{BASE_DIR}\\db.db')
+    with conn as db:
         cursor = db.cursor()
 
     cursor.execute("PRAGMA key='test'")
@@ -56,6 +60,13 @@ def connect():
     username TEXT NOT NULL,
     password TEXT NOT NULL);
     """)
+
+
+
+def export(window, query):
+    export_frame = read_sql_query(query, conn)
+    file_path = filedialog.asksaveasfile( "Save Export Csv File")
+    export_frame.to_csv(file_path)
 
 
 
@@ -369,6 +380,8 @@ def vaultScreen(window):
 
     btn = Button(window, text="+", command=mainfunc)
     btn.grid(column=1, pady=10)
+    btn2 = Button(window, text="Export", command=partial(export,window_var ,'SELECT * FROM vault'))
+    btn2.grid(row=1, column=2, pady=10)
 
     lbl = Label(window, text="Website")
     lbl.grid(row=2, column=0, padx=80)

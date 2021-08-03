@@ -14,7 +14,7 @@ class Main:
     def __init__(self, master):
         frame = Frame(master)
         frame.grid()
-
+        
         self.button = Button(frame, text = "Ishan", command = self.click).grid(row=0, column=0)
 
     def click(self):

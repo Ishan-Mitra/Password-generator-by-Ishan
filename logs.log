@@ -1,8 +1,3 @@
-list index out of range
-list index out of range
-list index out of range
-list index out of range
-list index out of range
-list index out of range
-list index out of range
-list index out of range
+2021-08-03 10:56:12.595100 : Error: can only join an iterable
+2021-08-03 10:57:21.122469 : Error: can only join an iterable
+2021-08-03 10:57:56.528829 : Error: can only join an iterable

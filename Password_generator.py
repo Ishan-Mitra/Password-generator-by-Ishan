@@ -1,15 +1,22 @@
+
 from datetime import datetime
 from tkinter import Frame, Menu, Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox, ttk
+from tkinter import filedialog
+
 from functools import partial
 from datetime import datetime
 from pathlib import Path
 import random,sqlite3, hashlib, string
+
 from tkinter.constants import BOTH, BOTTOM, HORIZONTAL, LEFT, RIGHT, VERTICAL, Y
+
+from pandas.io.sql import read_sql_query
 from pyperclip import copy
 from plyer import notification
 from sys import argv
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from pandas import read_sql_query as csv_write
 
 BASE_DIR = Path(argv[0]).resolve().parent
 
@@ -45,10 +52,12 @@ def decrypt_text(message):
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
 def connect():
+
     global cursor, db
     #db = sqlite3.connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg')
     db = sqlite3.connect(f'{BASE_DIR}\\db.db')
     cursor = db.cursor()
+
 
     cursor.execute("PRAGMA key='test'")
 
@@ -67,6 +76,13 @@ def connect():
         password TEXT NOT NULL);
         """)
 
+
+
+
+def export(window, query):
+    export_frame = read_sql_query(query, db)
+    file_path = filedialog.asksaveasfile( "Save Export Csv File")
+    export_frame.to_csv(file_path)
 
 
 

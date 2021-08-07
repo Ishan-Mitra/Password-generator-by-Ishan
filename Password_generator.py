@@ -1,22 +1,45 @@
-
-from datetime import datetime
-from tkinter import Frame, Menu, Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox, ttk
-from tkinter import filedialog
+"""
+Password Manager by Ishan
+@author : Ishan Mitra
+@email : ishanmitra020@gmail.com
+@place : Kolkata
+@version : 0.3
+@packages used:
+tkinter
+numpy
+functools
+random
+sqlite
+hashlib
+pycrpytodome
+string
+pyperclip
+datetime
+plyer
+pathlib
+csv
+@exe command: 
+pyinstaller --onefile --windowed --icon=logo.ico --hidden-import plyer.platforms.win.notification D:\Python\Password\Password_generator.py
+"""
+from tkinter import Frame, Menu, Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox, ttk, filedialog
+#from tkinter import filedialog
 
 from functools import partial
 from datetime import datetime
 from pathlib import Path
-import random,sqlite3, hashlib, string
+import random, hashlib, string
 
+from sqlite3 import connect as sql_connect
 from tkinter.constants import BOTH, BOTTOM, HORIZONTAL, LEFT, RIGHT, VERTICAL, Y
 
-from pandas.io.sql import read_sql_query
 from pyperclip import copy
 from plyer import notification
 from sys import argv
+
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-from pandas import read_sql_query as csv_write
+
+from csv import writer, reader
 
 BASE_DIR = Path(argv[0]).resolve().parent
 
@@ -54,8 +77,8 @@ def decrypt_text(message):
 def connect():
 
     global cursor, db
-    #db = sqlite3.connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg')
-    db = sqlite3.connect(f'{BASE_DIR}\\db.db')
+    #db = sql_connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg')
+    db = sql_connect(f'{BASE_DIR}\\db.db')
     cursor = db.cursor()
 
 
@@ -73,17 +96,123 @@ def connect():
         name TEXT NOT NULL,
         website TEXT NOT NULL,
         username TEXT NOT NULL,
-        password TEXT NOT NULL);
+        password TEXT NOT NULL,
+        notes TEXT NOT NULL);
         """)
 
 
 
 
-def export(window, query):
-    export_frame = read_sql_query(query, db)
-    file_path = filedialog.asksaveasfile( "Save Export Csv File")
-    export_frame.to_csv(file_path)
+def login(window):
+    try:
+        window.title("Password Manager by Ishan")
+        window.iconbitmap("logo.ico")
+        window.config(padx=50, pady=50)
+        window.resizable(0, 0)
 
+        for widget in window.winfo_children():
+            widget.destroy()
+
+        canvas = Canvas(height=200, width=200)
+        logo_img = PhotoImage(file=BASE_DIR/"logo.png")
+        canvas.create_image(100, 100, image=logo_img)
+        canvas.grid(row=0, column=1)
+
+        lbl = Label(window, text="Enter Master Password", font=("Helvetica", 15))
+        lbl.config(anchor=CENTER)
+        lbl.grid(row=0, column=2)
+
+        def getMasterPassword():
+            checkHashedPassword = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
+            cursor.execute('SELECT * FROM masterpassword WHERE id = 1 AND password = ?', [(checkHashedPassword)])
+            return cursor.fetchall()
+
+        def checkPassword(*args):
+
+            if getMasterPassword():
+                vaultScreen(window_var)
+            else:
+                txt.delete(0, 'end')
+                messagebox.showerror(title="Wrong Password",message="You have entered a wrong password")
+
+        txt = Entry(window, width=20, show="*", font=("Helvetica", 15))
+        txt.grid(row=1, column=2)
+        txt.bind("<Return>", partial(checkPassword))
+        txt.focus()
+
+        btn = Button(window, text="Submit", command=checkPassword, font=("Helvetica", 15))
+        btn.grid(row=1, column=3)
+
+        window.mainloop()
+
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
+
+
+
+def export_csv():
+    try:
+        file_path = filedialog.asksaveasfile(title="Save Export CSV File",filetypes = (("CSV files", "*.csv"),))
+        if file_path.name.endswith('.csv'):
+            file_path_var = file_path.name
+        else:
+            file_path_var = file_path.name + '.csv'
+        try:
+            with open(file_path_var, 'w', newline="") as datafile:
+                writer_cursor = writer(datafile, dialect='excel')
+                cursor.execute('SELECT * FROM vault')
+                queries = cursor.fetchall()
+                i = 0
+                for query in queries:
+                    i = i + 1
+                    writer_cursor.writerow((i,
+                    query[1], 
+                    query[2], 
+                    query[3], 
+                    decrypt_text(query[4]), 
+                    decrypt_text(query[5])
+                    ))
+                messagebox.showinfo(title="Your passwords have been exported", message="Your passwords have been exported")
+        except:
+            pass
+
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
+
+
+def import_csv():
+    try:
+        file_path = filedialog.askopenfile(title="Import CSV File",filetypes = (("CSV files", "*.csv"),))
+        if file_path.name.endswith('.csv'):
+            file_path_var = file_path.name
+        else:
+            file_path_var = file_path.name + '.csv'
+        
+        with open(file_path_var, 'r', newline="") as data_file:
+            reader_cursor = reader(data_file, dialect='excel')
+            insert_fields = """INSERT INTO vault(website, name, username, password, notes)
+            VALUES(?, ?, ?, ?, ?) """
+            for rwo in reader_cursor:
+                cursor.execute(insert_fields, (rwo[0], rwo[1], rwo[2], rwo[3], rwo[4]))
+                print(rwo[1])
+                db.commit()
+                window_var.update()
+
+        
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+    
 
 
 def on_closing():
@@ -147,8 +276,10 @@ def firstTimeScreen(window):
                     db.commit()
 
                     login(window_var)
-                else:
+                elif txt.get() != txt1.get():
                     messagebox.showerror(text="Passwords don't match")
+                else:
+                    messagebox.showerror(text="Error!")
             except Exception as E:
                 with open('logs.log', 'a') as log_file:
                     log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
@@ -179,6 +310,12 @@ def login(window):
 
         for widget in window.winfo_children():
             widget.destroy()
+
+        header = Label(window, text="Created by Ishan Mitra", font=("Lucida Calligraphy", 24))
+        header.grid(row=0, column=0)
+        footer = Label(window, text="Mitra Electronics and Software, Inc", font=("Kunstler Script", 36, ))
+        footer.grid(row=1, column=0)
+        header.config(fg="red")
 
         canvas = Canvas(height=200, width=200)
         logo_img = PhotoImage(file=BASE_DIR/"logo.png")
@@ -259,6 +396,7 @@ def save(*args):
         email = email_entry.get()
         password = encrypt_text(bytes(password_entry.get(), 'utf-8'))
         name = name_entry.get()
+        notes = encrypt_text(bytes(notes_entry.get(), 'utf-8'))
 
         if len(name) == 0 or len(password) == 0 or len(email) == 0:
             messagebox.showinfo(title="Oops", message="Please make sure that each and every field is filled up")
@@ -269,9 +407,9 @@ def save(*args):
         else:
             is_ok = messagebox.askyesno(title=name, message=f"These are the details entered : \nName: {name}\nWebsite: {website} \nEmail: {email} \nPassword: {password_entry.get()} \nAre you sure you want to save this? " )
             if is_ok == True:
-                insert_fields = """INSERT INTO vault(website, name, username, password)
-            VALUES(?, ?, ?, ?) """
-                cursor.execute(insert_fields, (website, name, email, password))
+                insert_fields = """INSERT INTO vault(website, name, username, password, notes)
+            VALUES(?, ?, ?, ?, ?) """
+                cursor.execute(insert_fields, (website, name, email, password, notes))
                 db.commit()
                 vaultScreen(window_var)
                 return True
@@ -292,13 +430,13 @@ def save(*args):
 def mainfunc():
     try:
         window=Toplevel()
-        global website_entry, email_entry, password_entry, name_entry
+        global website_entry, email_entry, password_entry, name_entry, notes_entry
         for widget in window.winfo_children():
             widget.destroy()
         window.title("Password Manager")
         #window.iconbitmap(BASE_DIR / "logo.ico")
         window.iconbitmap("logo.ico")
-        window.geometry('550x400')
+        window.geometry('550x450')
         window.config(padx=50, pady=50)
         window.resizable(0, 0)
 
@@ -317,6 +455,8 @@ def mainfunc():
         email_label.grid(row=3, column=0)
         password_label = Label(window, text="Password :")
         password_label.grid(row=4, column=0)
+        notes_label = Label(window, text="Notes :")
+        notes_label.grid(row=5, column=0)
 
         # Entries
         name_entry = Entry(window, width=53)
@@ -340,12 +480,15 @@ def mainfunc():
         def focus_password_entry(*args):
             password_entry.focus()
         email_entry.bind("<Return>", focus_password_entry)
+        notes_entry = Entry(window, width=53)
+        notes_entry.grid(row=5, column=1, columnspan=2)
+        notes_entry.bind("<Return>", save)
 
         # Buttons
         generate_password_ = Button(window, text="Generate Password", width=14, command=partial(generate_password, password_entry))
         generate_password_.grid(row=4, column=2)
         add_button = Button(window, text="Add", width=36, command=save)
-        add_button.grid(row=5, column=1, columnspan=2)
+        add_button.grid(row=6, column=1, columnspan=2)
 
         window.mainloop()
 
@@ -403,7 +546,8 @@ def vaultScreen(windowx):
             name = :name,
             website = :website,
             username = :username,
-            password = :password
+            password = :password,
+            notes = :notes
             WHERE
             id = :id""",
             {
@@ -411,6 +555,7 @@ def vaultScreen(windowx):
             'website' : website_entry_edit.get(),
             'username' : email_entry_edit.get(),
             'password' : encrypt_text(bytes(password_entry_edit.get(), 'utf-8')),
+            'notes' : encrypt_text(bytes(notes_entry_edit.get(), 'utf-8')),
             'id' : i[0]
             })
             db.commit()
@@ -421,8 +566,11 @@ def vaultScreen(windowx):
                 log_file.close()
                 messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
+    def see_notes(note):
+        messagebox.showinfo(title="Notes",message=decrypt_text(note))
+
     def change_entry(input):
-        global website_entry_edit, email_entry_edit, password_entry_edit, name_entry_edit
+        global website_entry_edit, email_entry_edit, password_entry_edit, name_entry_edit, notes_entry_edit
         try:
             cursor.execute('SELECT * FROM vault WHERE ID = ?', (input,))
             array = cursor.fetchall()
@@ -451,6 +599,8 @@ def vaultScreen(windowx):
             email_label.grid(row=3, column=0)
             password_label = Label(window_, text="Password :")
             password_label.grid(row=4, column=0)
+            notes_label = Label(window_, text="Notes :")
+            notes_label.grid(row=5, column=0)
 
             # Entries
             name_entry_edit = Entry(window_, width=53)
@@ -466,12 +616,15 @@ def vaultScreen(windowx):
             password_entry_edit = Entry(window_, width=35, show='*')
             password_entry_edit.grid(row=4, column=1)
             password_entry_edit.insert(0, decrypt_text(array[0][4]))
+            notes_entry_edit = Entry(window_, width=35)
+            notes_entry_edit.grid(row=5, column=1)
+            notes_entry_edit.insert(0, decrypt_text(array[0][5]))
 
             # Buttons
             generate_passwordG = Button(window_, text="Generate Password", width=14, command=partial(generate_password, password_entry_edit))
             generate_passwordG.grid(row=4, column=2)
             add_button = Button(window_, text="Update", width=36, command=partial(update_password, array[0]))
-            add_button.grid(row=5, column=1, columnspan=2)
+            add_button.grid(row=6, column=1, columnspan=2)
 
             window_var.mainloop()
 
@@ -491,10 +644,10 @@ def vaultScreen(windowx):
         canvas = Canvas(frame_canvas)
         canvas.pack(side=LEFT,fill=BOTH, expand=1)
         def _on_mousewheel(event):
-            canvas.yview_scroll(int((event.delta/120)), "units")
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
         hsb = ttk.Scrollbar(frame_canvas, orient=HORIZONTAL, command=canvas.xview)
-        hsb.pack(side=BOTTOM, fill=Y)
+        hsb.pack(side=BOTTOM, fill=BOTH)
         canvas.configure(xscrollcommand=hsb.set)
         
         vsb = ttk.Scrollbar(frame_canvas, orient=VERTICAL, command=canvas.yview)
@@ -520,8 +673,12 @@ def vaultScreen(windowx):
         lbl.grid(column=2)
         lbl.anchor(CENTER)
 
-        btn = Button(window, text="+", command=mainfunc)
-        btn.grid(column=2, pady=10)
+        btn1 = Button(window, text="+", command=mainfunc)
+        btn1.grid(column=2, pady=10)
+        btn = Button(window, text="Export", command=export_csv)
+        btn.grid(row = 1,column=3, pady=10)
+        btn = Button(window, text="Import", command=import_csv)
+        btn.grid(row = 1,column=4, pady=10)
 
         lbl = Label(window, text="Sl. no.")
         lbl.grid(row=2, column=0, padx=20)
@@ -536,31 +693,32 @@ def vaultScreen(windowx):
 
         cursor.execute('SELECT * FROM vault')
         if (cursor.fetchall() != None):
-            i = 0
             try:
-                while True:
-                    cursor.execute('SELECT * FROM vault')
-                    array = cursor.fetchall()
-
-                    lbl0 = Label(window, text=(array[i][1]), font=("Helvetica", 12))
+                cursor.execute('SELECT * FROM vault')
+                array = cursor.fetchall()
+                i = 0
+                for ayy in array:
+                    lbl0 = Label(window, text=(ayy[1]), font=("Helvetica", 12))
                     lbl0.grid(column=1, row=(i+3))
                     lbl00 = Label(window, text=(i+1), font=("Helvetica", 12))
                     lbl00.grid(column=0, row=(i+3))
-                    lbl1 = Label(window, text=(array[i][2]), font=("Helvetica", 12))
+                    lbl1 = Label(window, text=(ayy[2]), font=("Helvetica", 12))
                     lbl1.grid(column=2, row=(i+3))
-                    lbl2 = Label(window, text=(array[i][3]), font=("Helvetica", 12))
+                    lbl2 = Label(window, text=(ayy[3]), font=("Helvetica", 12))
                     lbl2.grid(column=3, row=(i+3))
-                    lbl3 = Label(window, text=('*' * len(decrypt_text(array[i][4]))), font=("Helvetica", 12))
+                    lbl3 = Label(window, text=('*' * len(decrypt_text(ayy[4]))), font=("Helvetica", 12))
                     lbl3.grid(column=4, row=(i+3))
 
-                    copy_btn = Button(window, text="Copy", command=partial(copyf, array[i][0]))
+                    copy_btn = Button(window, text="Copy", command=partial(copyf, ayy[0]))
                     copy_btn.grid(column=6, row=(i+3), pady=10)
 
-                    btn = Button(window, text="Delete", command=partial(removeEntry, array[i][0]))
+                    btn = Button(window, text="Delete", command=partial(removeEntry, ayy[0]))
                     btn.grid(column=5, row=(i+3), pady=10)
 
-                    btn_c = Button(window, text="Edit", command=partial(change_entry, array[i][0]))
+                    btn_c = Button(window, text="Edit", command=partial(change_entry, ayy[0]))
                     btn_c.grid(column=7, row=(i+3), pady=10)
+                    btn_n = Button(window, text="See notes", command=partial(see_notes, ayy[5]))
+                    btn_n.grid(column=8, row=(i+3), pady=10)
 
                     i = i +1
 

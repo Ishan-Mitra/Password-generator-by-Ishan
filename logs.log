@@ -1,3 +1,16 @@
-2021-08-03 10:56:12.595100 : Error: can only join an iterable
-2021-08-03 10:57:21.122469 : Error: can only join an iterable
-2021-08-03 10:57:56.528829 : Error: can only join an iterable
+2021-08-13 23:08:57.575941 : Logged in sucessfully
+2021-08-13 23:10:30.230864 : Logged in sucessfully
+2021-08-13 23:13:31.005087 : Logged in sucessfully
+2021-08-13 23:19:05.585947 : Logged in sucessfully
+2021-08-13 23:19:39.918799 : Error: NOT NULL constraint failed: vault.createdon
+2021-08-13 23:20:43.452958 : Logged in sucessfully
+2021-08-13 23:24:22.403391 : Logged in sucessfully
+2021-08-14 12:36:17.588358 : Couldn't log in due to wrong password
+2021-08-14 12:37:06.276612 : Couldn't log in due to wrong password
+2021-08-15 11:12:47.482070 : Logged in sucessfully
+2021-08-17 16:55:08.790843 : Logged in sucessfully
+2021-08-18 14:24:18.632908 : Logged in sucessfully
+2021-08-18 14:45:05.193348 : Logged in sucessfully
+2021-08-18 15:05:55.658288 : Logged in sucessfully
+2021-08-18 15:08:54.256439 : Logged in sucessfully
+2021-08-18 15:10:43.231020 : Logged in sucessfully

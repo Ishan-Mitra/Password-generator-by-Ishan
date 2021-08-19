@@ -1,9 +1,11 @@
 """
 Password Manager by Ishan
 @author : Ishan Mitra
+@license : BSD License
+@copyright : Copyright 2021, Ishan Mitra
 @email : ishanmitra020@gmail.com
 @place : Kolkata
-@version : 0.3
+@version : 0.4
 @packages used:
 tkinter
 numpy
@@ -18,19 +20,33 @@ datetime
 plyer
 pathlib
 csv
+os
 @exe command: 
+@python 3.9.6
 pyinstaller --onefile --windowed --icon=logo.ico --hidden-import plyer.platforms.win.notification D:\Python\Password\Password_generator.py
+@python 3.8.9 32 bit
+pyinstaller --onefile --windowed --icon=logo.ico --hidden-import plyer.platforms.win.notification 
+--hidden-import requests 
+--hidden-import pycryptodome 
+--hidden-import pyperclip
+--hidden-import pywin32 
+--hidden-import Pillow
+D:\Python\Password\Password_generator.py
 """
+__version__ = '0.4'
+import threading
 from tkinter import Frame, Menu, Tk, Entry, Label, CENTER, Button, Canvas, PhotoImage, END, Toplevel, messagebox, ttk, filedialog
-#from tkinter import filedialog
+from requests import get as get_request
+from PIL import ImageTk, Image
 
 from functools import partial
 from datetime import datetime
 from pathlib import Path
-import random, hashlib, string
+import random
+import hashlib
+import string
 
 from sqlite3 import connect as sql_connect
-from tkinter.constants import BOTH, BOTTOM, HORIZONTAL, LEFT, RIGHT, VERTICAL, Y
 
 from pyperclip import copy
 from plyer import notification
@@ -38,20 +54,37 @@ from sys import argv
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from win32api import ShellExecute
 
 from csv import writer, reader
 
 BASE_DIR = Path(argv[0]).resolve().parent
 
+BOTH = 'both'
+BOTTOM = 'bottom'
+HORIZONTAL = 'horizontal'
+LEFT = 'left'
+RIGHT = 'right'
+VERTICAL = 'vertical'
+Y = 'y'
+NORMAL = 'normal'
+DISABLED = 'disabled'
+
+__Name__ = "Password Generator by Ishan"
+
 def encrypt_text(message):
     try:
-        cipher = AES.new(hashlib.sha256().digest(), AES.MODE_CBC, b'\xc7\xd6\xac*\xe5\x91\xa78\xebu$\x99+\xb2H\xae')
+        cursor.execute('SELECT * FROM masterpassword WHERE id = 1')
+        pasdf = cursor.fetchone()
+        password = bytes(decrypt_text_(pasdf[1]), 'utf-8')
+        cipher = AES.new(hashlib.sha256().digest(), AES.MODE_CBC, password[:16])
         return cipher.encrypt(pad(pad(pad(pad(message, AES.block_size), AES.block_size), AES.block_size), AES.block_size))
     except Exception as E:
         with open('logs.log', 'a') as log_file:
             log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
             log_file.close()
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
 
 def encrypt_text_(message):
     try:
@@ -64,7 +97,18 @@ def encrypt_text_(message):
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
 
-def decrypt_text(message):
+def decrypt_text_key(message, key):
+    try:
+        cipher = AES.new(hashlib.sha256().digest(), AES.MODE_CBC, key)
+        return unpad(unpad(unpad(unpad(cipher.decrypt(message), AES.block_size), AES.block_size), AES.block_size), AES.block_size).decode()
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
+
+def decrypt_text_(message):
     try:
         cipher = AES.new(hashlib.sha256().digest(), AES.MODE_CBC, b'\xc7\xd6\xac*\xe5\x91\xa78\xebu$\x99+\xb2H\xae')
         return unpad(unpad(unpad(unpad(cipher.decrypt(message), AES.block_size), AES.block_size), AES.block_size), AES.block_size).decode()
@@ -74,8 +118,22 @@ def decrypt_text(message):
             log_file.close()
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
-def connect():
 
+def decrypt_text(message):
+    try:
+        cursor.execute('SELECT * FROM masterpassword WHERE id = 1')
+        pasdf = cursor.fetchone()
+        password = bytes(decrypt_text_(pasdf[1]), 'utf-8')
+        cipher = AES.new(hashlib.sha256().digest(), AES.MODE_CBC, password[:16])
+        return unpad(unpad(unpad(unpad(cipher.decrypt(message), AES.block_size), AES.block_size), AES.block_size), AES.block_size).decode()
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
+
+def connect():
     global cursor, db
     #db = sql_connect(f'{BASE_DIR}\\lib\\tcl\\msgs\\zn_ah.msg')
     db = sql_connect(f'{BASE_DIR}\\db.db')
@@ -103,45 +161,82 @@ def connect():
 
 
 
-def login(window):
+def reset_password(window):
     try:
-        window.title("Password Manager by Ishan")
+        for widget in window.winfo_children():
+            widget.destroy()
+        window.title("Password Manager")
         window.iconbitmap("logo.ico")
         window.config(padx=50, pady=50)
         window.resizable(0, 0)
-
-        for widget in window.winfo_children():
-            widget.destroy()
-
         canvas = Canvas(height=200, width=200)
-        logo_img = PhotoImage(file=BASE_DIR/"logo.png")
+        #logo_img = PhotoImage(file=BASE_DIR/"logo.png")
+        logo_img = PhotoImage(file="./logo.png")
         canvas.create_image(100, 100, image=logo_img)
-        canvas.grid(row=0, column=1)
+        canvas.grid(row=0, column=0)
 
-        lbl = Label(window, text="Enter Master Password", font=("Helvetica", 15))
-        lbl.config(anchor=CENTER)
-        lbl.grid(row=0, column=2)
-
-        def getMasterPassword():
-            checkHashedPassword = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
-            cursor.execute('SELECT * FROM masterpassword WHERE id = 1 AND password = ?', [(checkHashedPassword)])
-            return cursor.fetchall()
-
-        def checkPassword(*args):
-
-            if getMasterPassword():
-                vaultScreen(window_var)
-            else:
-                txt.delete(0, 'end')
-                messagebox.showerror(title="Wrong Password",message="You have entered a wrong password")
+        lbl = Label(window, text="Choose a Master Password", font=("Helvetica", 18))
+        lbl.grid(row=0, column=1)
 
         txt = Entry(window, width=20, show="*", font=("Helvetica", 15))
-        txt.grid(row=1, column=2)
-        txt.bind("<Return>", partial(checkPassword))
+        txt.grid(row=1, column=1)
         txt.focus()
 
-        btn = Button(window, text="Submit", command=checkPassword, font=("Helvetica", 15))
-        btn.grid(row=1, column=3)
+        lbl1 = Label(window, text="Re-enter password", font=("Helvetica", 15))
+        lbl1.grid(row=2, column=1)
+
+        txt1 = Entry(window, width=20, show="*", font=("Helvetica", 15))
+        txt1.grid(row=3, column=1)
+        def focus_txt(*args):
+            txt1.focus()
+        txt.bind("<Return>", focus_txt)
+
+
+        def changePassword(*args):
+            try:
+                cursor.execute('SELECT * FROM masterpassword WHERE id = 1')
+                pasdf = cursor.fetchone()
+                password_key__ = bytes(decrypt_text_(pasdf[1]), 'utf-8')
+                password_key = password_key__
+                cursor.execute("""SELECT id, password, notes FROM vault""")
+                notes_and_password = cursor.fetchall()
+
+                if txt.get() == txt1.get():
+                    cursor.execute("""UPDATE masterpassword SET
+                    password = :password
+                    WHERE
+                    id = 1""",
+                    {
+                        'password' : encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
+                    })
+
+                db.commit()
+
+                for passwords in notes_and_password:
+                    password_entry_ = decrypt_text_key(passwords[1], password_key__[:16])
+                    notes_entry_ = decrypt_text_key(passwords[2], password_key__[:16])
+                    cursor.execute("""UPDATE vault SET
+                    password = :password,
+                    notes = :notes
+                    WHERE
+                    id = :id""",
+                    {
+                    'password' : encrypt_text(bytes(password_entry_, 'utf-8')),
+                    'notes' : encrypt_text(bytes(notes_entry_, 'utf-8')),
+                    'id' : passwords[0]})
+                db.commit()
+                
+                messagebox.showinfo(title="Master password reset sucessfully", message="Master password reset sucessfully")
+                vaultScreen(window_var)
+            except Exception as E:
+                with open('logs.log', 'a') as log_file:
+                    log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+                    log_file.close()
+                    messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
+        txt1.bind("<Return>", changePassword)
+        btn = Button(window, text="Save", command=changePassword, font=("Helvetica", 15))
+        btn.grid(row=5, column=1)
 
         window.mainloop()
 
@@ -150,7 +245,6 @@ def login(window):
             log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
             log_file.close()
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
-
 
 
 
@@ -195,17 +289,20 @@ def import_csv():
             file_path_var = file_path.name
         else:
             file_path_var = file_path.name + '.csv'
-        
-        with open(file_path_var, 'r', newline="") as data_file:
-            reader_cursor = reader(data_file, dialect='excel')
-            insert_fields = """INSERT INTO vault(website, name, username, password, notes)
-            VALUES(?, ?, ?, ?, ?) """
-            for rwo in reader_cursor:
-                cursor.execute(insert_fields, (rwo[0], rwo[1], rwo[2], rwo[3], rwo[4]))
-                print(rwo[1])
-                db.commit()
-                window_var.update()
-
+        try:
+            with open(file_path_var, 'r', newline="") as data_file:
+                reader_cursor = reader(data_file, dialect='excel')
+                insert_fields = """INSERT INTO vault(name, website, username, password, notes)
+                VALUES(?, ?, ?, ?, ?) """
+                for rwo in reader_cursor:
+                    cursor.execute(insert_fields, (rwo[1], rwo[2], rwo[3], encrypt_text(bytes(rwo[4], 'utf-8')), encrypt_text(bytes(rwo[5], 'utf-8'))))
+                    db.commit()
+                vaultScreen(window_var)
+                messagebox.showinfo(title="Your passwords have been imported", message="Your passwords have been imported")
+        except Exception as E:
+            with open('logs.log', 'a') as log_file:
+                log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+                log_file.close()
         
     except Exception as E:
         with open('logs.log', 'a') as log_file:
@@ -227,7 +324,7 @@ def on_closing():
             log_file.close()
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
-def hashPassword(input):
+def hashPassword(input: str):
     try:
         return hashlib.md5(input).hexdigest()
     except Exception as E:
@@ -327,8 +424,8 @@ def login(window):
         lbl.grid(row=0, column=2)
 
         def getMasterPassword():
-            checkHashedPassword = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
-            cursor.execute('SELECT * FROM masterpassword WHERE id = 1 AND password = ?', [(checkHashedPassword)])
+            check_hashed_password = encrypt_text_(bytes(hashPassword(txt.get().encode('utf-8')), 'utf-8'))
+            cursor.execute('SELECT * FROM masterpassword WHERE id = 1 AND password = ?', [(check_hashed_password)])
             return cursor.fetchall()
 
         def checkPassword(*args):
@@ -382,6 +479,7 @@ def generate_password(password_entry__):
                 app_name="Password Generator in Python",
                 app_icon = "logo.ico",
                 timeout= 5,
+                toast=True,
                 )
 
 
@@ -423,6 +521,83 @@ def save(*args):
             log_file.close()
             messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
+
+
+
+
+# ------------------------------------------------------------------------------------ UPDATE APP ----------------------------------------------------------------------------- #
+
+
+def update():
+    try:
+        currentversion = get_request("https://raw.githubusercontent.com/Mitra-Electronics/passwordmanagerbyishanverstionupdate.tct.txt/main/version.txt").text
+        if float(__version__) < float(currentversion):
+            ask_update = messagebox.askyesno(title="Software Update", message="Update available for Password Manager by Ishan.\nWould you like to update to the latest version?")
+            if ask_update == True:
+                print("Update")
+                UpdateManager(window_var)
+        elif float(__version__) > float(currentversion) or float(__version__) == float(currentversion):
+            messagebox.showinfo(title="Software Update", message="You are on the latest version of Password Manager by Ishan")
+        else:
+            messagebox.showerror(title="An error occured", message="An error occured")
+    except Exception as E:
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="No internet connection", message="An error occured while checking for updates, probably there is no internet connection")
+
+class UpdateManager(Toplevel):
+    def __init__(self, parent):
+        Toplevel.__init__(self, parent)
+
+        self.transient(parent)
+        self.result = None
+        self.grab_set()
+        w = 350
+        h = 200
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw - w) / 2
+        y = (sh - h) / 2
+        self.geometry('{0}x{1}+{2}+{3}'.format(w, h, int(x), int(y)))
+        self.resizable(width=False, height=False)
+        self.title('Update Manager')
+        self.wm_iconbitmap('logo.ico')
+
+        image = Image.open('logo.png')
+        photo = ImageTk.PhotoImage(image)
+        label = Label(self, image=photo)
+        label.image = photo
+        label.pack()
+
+        def install_update():
+            ShellExecute(0, 'open', f'{BASE_DIR}\\temp\\nn.msi', None, None, 10)
+            parent.destroy()
+
+        def start_update_manager():
+            with get_request('https://github.com/vsantiago113/Tkinter-MyTestApp/raw/master/'
+                              'updates/MyTestApp.msi?raw=true', stream=True) as r:
+                self.progressbar['maximum'] = int(r.headers.get('Content-Length'))
+                r.raise_for_status()
+                with open(f'{BASE_DIR}\\temp\\nn.msi', 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=4096):
+                        if chunk:  # filter out keep-alive new chunks
+                            f.write(chunk)
+                            self.progressbar['value'] += 4096
+            self.button1.config(text='Install', state=NORMAL)
+
+        self.progressbar = ttk.Progressbar(self,
+                                           orient='horizontal',
+                                           length=200,
+                                           mode='determinate',
+                                           value=0,
+                                           maximum=0)
+        self.progressbar.place(relx=0.5, rely=0.5, anchor=CENTER)
+        self.button1 = ttk.Button(self, text='Please Wait', state=DISABLED, command=install_update)
+        self.button1.place(x=-83, relx=1.0, y=-33, rely=1.0)
+
+        self.t1 = threading.Thread(target=start_update_manager)
+        self.t1.start()
 
 
 
@@ -509,7 +684,7 @@ def vaultScreen(windowx):
                 messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
 
-    def removeEntry(input):
+    def removeEntry(input: int):
         try:
             ask_delete = messagebox.askyesno("Delete Entry", "Do you really want to delete the password?")
             if ask_delete == True:
@@ -522,7 +697,7 @@ def vaultScreen(windowx):
                 log_file.close()
                 messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
-    def copyf(input):
+    def copyf(input: int):
         try:
             cursor.execute('SELECT password FROM vault WHERE ID = ?', (input,))
             array = cursor.fetchone()
@@ -567,7 +742,13 @@ def vaultScreen(windowx):
                 messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
     def see_notes(note):
-        messagebox.showinfo(title="Notes",message=decrypt_text(note))
+        try:
+            messagebox.showinfo(title="Notes",message=decrypt_text(note))
+        except Exception as E:
+            with open('logs.log', 'a') as log_file:
+                log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+                log_file.close()
+                messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
     def change_entry(input):
         global website_entry_edit, email_entry_edit, password_entry_edit, name_entry_edit, notes_entry_edit
@@ -577,7 +758,7 @@ def vaultScreen(windowx):
             window_ = Toplevel()
             for widget in window_.winfo_children():
                 widget.destroy()
-            window_.title("Change entry | Password Manager")
+            window_.title("Change entry")
             #window.iconbitmap(BASE_DIR / "logo.ico")
             window_.iconbitmap("logo.ico")
             window_.geometry('550x400')
@@ -634,9 +815,33 @@ def vaultScreen(windowx):
                 log_file.close()
                 messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
+    def ask_to_reset_password():
+        try:
+            confirmation = messagebox.askyesno(title="Are you sure?", message="Are you sure that you want to reset the master password? \nIt will take a while depending on your processor speed and the number of passwords you have entered since we will have to encode your passwords again.")
+            if confirmation == True:
+                reset_password(window_var)
+            else:
+                pass
+
+        except Exception as E:
+            with open('logs.log', 'a') as log_file:
+                log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+                log_file.close()
+                messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+
     try:
-        menu = Menu(windowx)
-        file_tab = Menu(menu)
+        windowx.title("Password Manager by Ishan")
+        menu = Menu(windowx, tearoff=0)
+        file_tab = Menu(menu, tearoff=0)
+        windowx.config(menu=menu)
+        menu.add_command(label="Add Password", command=mainfunc)
+        menu.add_cascade(label="Import/Export", menu=file_tab)
+        file_tab.add_command(label="Export", command=export_csv)
+        file_tab.add_command(label="Import", command=import_csv)
+        about_menu = Menu(menu, tearoff=0)
+        menu.add_cascade(label="Other", menu=about_menu)
+        about_menu.add_command(label="Check for updates", command=update)
+        about_menu.add_command(label="Reset master password", command=ask_to_reset_password)
         frame_canvas = Frame(windowx)
         frame_canvas.pack(fill=BOTH, expand=1)
         frame_canvas.rowconfigure(0,weight=1)
@@ -669,16 +874,10 @@ def vaultScreen(windowx):
         windowx.geometry('1200x600')
         windowx.config(padx=5, pady=5)
         windowx.resizable(height=0, width=200)
-        lbl = Label(window, text="Password Vault", font=("Helvetica", 15))
+        lbl = Label(window, text="""Password Manager by Ishan
+                """, font=("Helvetica", 15))
         lbl.grid(column=2)
         lbl.anchor(CENTER)
-
-        btn1 = Button(window, text="+", command=mainfunc)
-        btn1.grid(column=2, pady=10)
-        btn = Button(window, text="Export", command=export_csv)
-        btn.grid(row = 1,column=3, pady=10)
-        btn = Button(window, text="Import", command=import_csv)
-        btn.grid(row = 1,column=4, pady=10)
 
         lbl = Label(window, text="Sl. no.")
         lbl.grid(row=2, column=0, padx=20)
@@ -704,7 +903,7 @@ def vaultScreen(windowx):
                     lbl00.grid(column=0, row=(i+3))
                     lbl1 = Label(window, text=(ayy[2]), font=("Helvetica", 12))
                     lbl1.grid(column=2, row=(i+3))
-                    lbl2 = Label(window, text=(ayy[3]), font=("Helvetica", 12))
+                    lbl2 = Label(window, text=(ayy[3]), font=("Helvetica", 12),)
                     lbl2.grid(column=3, row=(i+3))
                     lbl3 = Label(window, text=('*' * len(decrypt_text(ayy[4]))), font=("Helvetica", 12))
                     lbl3.grid(column=4, row=(i+3))
@@ -736,10 +935,10 @@ def vaultScreen(windowx):
                         log_file.close()
 
     except Exception as E:
-            with open('logs.log', 'a') as log_file:
-                log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
-                log_file.close()
-                messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
+        with open('logs.log', 'a') as log_file:
+            log_file.write(str(datetime.now()) + " : " + "Error: " + (str(E)) + "\n")
+            log_file.close()
+            messagebox.showerror(title="An error occured", message="An error occured. Please see the log file for more details")
 
 
 
